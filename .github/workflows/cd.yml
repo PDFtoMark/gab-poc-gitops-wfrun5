@@ -1,0 +1,38 @@
+name: CD
+on:
+  workflow_run:
+    workflows: ["CI"]
+    branches: [poc]
+    types:
+      - completed
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@0717577d45739eb3c851188b29f50ed6c0b2194e # v2.8.0
+      - name: Download Image Tags
+        uses: dawidd6/action-download-artifact@268677152d06ba59fcec7a7f0b5d961b6ccd7e1e # v2.28.0
+        with:
+          name: image_tags
+          workflow: ci.yml
+          run_id: ${{ github.event.workflow_run.id }}
+          path: ${{ github.workspace }}
+      - name: Download Manifests
+        uses: dawidd6/action-download-artifact@268677152d06ba59fcec7a7f0b5d961b6ccd7e1e # v2.28.0
+        with:
+          name: manifests
+          workflow: ci.yml
+          run_id: ${{ github.event.workflow_run.id }}
+          path: ${{ github.workspace }}
+      - name: Read Image Tags
+        run: |
+          echo "IMAGE_TAG=$(cat ${{ github.workspace }}/IMAGE_TAG)" >> $GITHUB_ENV
+      - name: Generate Manifests
+        run: |
+          .github/workflows/utils/generate-manifests.sh ${{ github.workspace }}/manifests gen_manifests all
+        env:
+          APP_BUILD_VERSION: ${{ env.IMAGE_TAG }}
+          ORCHESTRATOR_PAT: ${{ secrets.FAKE_ORCHESTRATOR_PAT }}
